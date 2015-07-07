@@ -15,10 +15,6 @@
 - name: install data.json
   copy: src=data.json dest="{{homedir}}/data.json"
 
-- name: install mysql config file
-  template: src=mysqlconfig.j2 dest="{{homedir}}/mysqlconfig"
-  when: 'db_driver == "MySQL" or db_driver == "both"'
-
-- name: install pg config file
-  template: src=pgconfig.j2 dest="{{homedir}}/pgconfig"
-  when: 'db_driver == "Pg" or db_driver == "both"'
+- name: install configuration files
+  template: src=config.j2 dest="{{homedir}}/{{item.db_driver|lower}}-{{item.db_version}}-config"
+  with_items: database_configs
