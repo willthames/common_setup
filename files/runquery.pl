@@ -8,7 +8,7 @@ use File::Slurp;
 use Getopt::Long;
 use Data::Dumper;
 use Safe;
-use Time::HiRes qw(gettimeofday);
+use Time::HiRes qw(gettimeofday tv_interval);
 
 main();
 
@@ -20,10 +20,12 @@ sub main {
 
 	my $query = 0;
 	my $configfile;
+	my $baked = 0;
 
 	GetOptions(
 		"q=i" => \$query,
 		"c=s" => \$configfile,
+		"b"   => \$baked,
 	);
 
 	die "You didn't specify a query to run (use -q )" if $query == 0;
@@ -34,7 +36,7 @@ sub main {
 
 	my $q = $queries->{$query} or die "query $query does not exist";
 
-	run_query($dbh, $q);
+	run_query($dbh, $q, $baked);
 }
 
 sub read_localconfig {
@@ -61,20 +63,19 @@ sub read_localconfig {
 sub run_query {
 	my $dbh = shift;
 	my $query = shift;
+	my $baked = shift;
 
-	my ($sstart, $ustart) = gettimeofday();
-	$dbh->selectall_arrayref($query->{query}, undef, @{$query->{args}});
-	my ($sfinish, $ufinish) = gettimeofday();
-
-	my $udiff = $ufinish - $ustart;
-	if ($udiff < 0) { 
-		$udiff += 1000000;
-		$sfinish -= 1;
+	my @start = gettimeofday();
+	if($baked) {
+		$dbh->{'pg_server_prepare'} = 0;
+		$dbh->selectall_arrayref($query->{baked});
 	}
-	my $sdiff = $sfinish - $sstart;
+	else {
+		$dbh->{'pg_server_prepare'} = 1;
+		$dbh->selectall_arrayref($query->{query}, undef, @{$query->{args}});
+	}
 
-	print "Sec: $sdiff   USec: $udiff\n";
-
+	print "Total ms: " . 1000 * tv_interval(\@start) . "\n";
 }
 
 sub db_connect {
